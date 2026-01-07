@@ -49,9 +49,11 @@
                 opacity: 0;
                 transform: translateY(20px) scale(0.9);
             }
+
             60% {
                 transform: translateY(-5px) scale(1.05);
             }
+
             100% {
                 opacity: 1;
                 transform: translateY(0) scale(1);
@@ -68,7 +70,16 @@
     <!-- Theme Switcher (Vercel Style) -->
     <div class="fixed top-4 right-4 z-50">
         <div
-            class="flex items-center gap-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-full px-1 py-1 shadow-sm">
+            class="flex items-center gap-1 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-full px-1 py-1 shadow-sm dark:shadow-none">
+            <button onclick="setTheme('system')" id="theme-system" title="System"
+                class="theme-btn p-2 rounded-full transition-all hover:bg-slate-100 dark:hover:bg-slate-800 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                    <line x1="8" y1="21" x2="16" y2="21"></line>
+                    <line x1="12" y1="17" x2="12" y2="21"></line>
+                </svg>
+            </button>
             <button onclick="setTheme('light')" id="theme-light" title="Light Mode"
                 class="theme-btn p-2 rounded-full transition-all hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -84,15 +95,6 @@
                     <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
                 </svg>
             </button>
-            <button onclick="setTheme('system')" id="theme-system" title="System"
-                class="theme-btn p-2 rounded-full transition-all hover:bg-slate-100 dark:hover:bg-slate-800 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                    stroke-linecap="round" stroke-linejoin="round">
-                    <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
-                    <line x1="8" y1="21" x2="16" y2="21"></line>
-                    <line x1="12" y1="17" x2="12" y2="21"></line>
-                </svg>
-            </button>
             <button onclick="setTheme('dark')" id="theme-dark" title="Dark Mode"
                 class="theme-btn p-2 rounded-full transition-all hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -103,10 +105,10 @@
         </div>
     </div>
 
-    <div class="min-h-screen flex items-center justify-center p-8">
+    <div class="min-h-screen flex items-center justify-center p-8 bg-white dark:bg-slate-950">
         <div class="max-w-3xl w-full">
             <div
-                class="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-12 shadow-sm text-center">
+                class="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 p-12 shadow-sm dark:shadow-none text-center">
                 <h1 id="title"
                     class="text-4xl md:text-6xl font-black tracking-tight mb-4 text-transparent bg-clip-text bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600">
                     Welcome!
@@ -167,10 +169,18 @@
             document.getElementById('subtitle').textContent = subtitle;
         }
 
+        // Mobile detection
+        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || window.innerWidth < 768;
+
         // Track active confetti animations
         let activeConfettiCount = 0;
-        const MAX_CONFETTI = 30;
+        const MAX_CONFETTI = isMobile ? 10 : 30;
         let cooldownActive = false;
+
+        // Shared canvas for better mobile performance
+        let sharedCanvas = null;
+        let sharedCtx = null;
+        let allParticles = [];
 
         function updateButtonState() {
             const button = document.getElementById('confettiButton');
@@ -192,29 +202,41 @@
             }, 2000);
         }
 
-        // Advanced confetti implementation
-        function createConfetti(x, y, angle, spread, colors, onComplete) {
-            const canvas = document.createElement("canvas");
-            canvas.style.position = "fixed";
-            canvas.style.top = "0";
-            canvas.style.left = "0";
-            canvas.style.width = "100vw";
-            canvas.style.height = "100vh";
-            canvas.style.pointerEvents = "none";
-            canvas.style.zIndex = "9999";
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-            document.body.appendChild(canvas);
+        // Initialize shared canvas
+        function initSharedCanvas() {
+            if (!sharedCanvas) {
+                sharedCanvas = document.createElement("canvas");
+                sharedCanvas.style.position = "fixed";
+                sharedCanvas.style.top = "0";
+                sharedCanvas.style.left = "0";
+                sharedCanvas.style.width = "100vw";
+                sharedCanvas.style.height = "100vh";
+                sharedCanvas.style.pointerEvents = "none";
+                sharedCanvas.style.zIndex = "9999";
+                sharedCanvas.width = window.innerWidth;
+                sharedCanvas.height = window.innerHeight;
+                document.body.appendChild(sharedCanvas);
 
-            const ctx = canvas.getContext("2d");
-            const particles = [];
+                sharedCtx = sharedCanvas.getContext("2d", {
+                    alpha: true,
+                    desynchronized: true // Better performance on mobile
+                });
+            }
+        }
+
+        // Optimized confetti implementation using shared canvas
+        function createConfetti(x, y, angle, spread, colors, onComplete) {
+            initSharedCanvas();
+
+            const particleCount = isMobile ? 20 : 40; // Reduce particles on mobile
+            const burstParticles = [];
 
             // Create particles with multiple shapes
-            for (let i = 0; i < 40; i++) {
+            for (let i = 0; i < particleCount; i++) {
                 const particleAngle = angle + (Math.random() - 0.5) * spread;
                 const velocity = Math.random() * 18 + 21.6;
 
-                particles.push({
+                const particle = {
                     x: x * window.innerWidth,
                     y: y * window.innerHeight,
                     vx: Math.cos((particleAngle * Math.PI) / 180) * velocity,
@@ -229,66 +251,103 @@
                     gravity: 0.5,
                     life: 1.0,
                     decay: 0.0025,
-                });
+                    burstId: Date.now() + Math.random() // Unique ID for this burst
+                };
+
+                burstParticles.push(particle);
+                allParticles.push(particle);
             }
 
-            function animate() {
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
+            // Track if this burst is complete
+            let burstComplete = false;
 
-                for (let i = particles.length - 1; i >= 0; i--) {
-                    const p = particles[i];
+            // Main animation loop (runs once for all particles)
+            if (allParticles.length === burstParticles.length) {
+                requestAnimationFrame(animate);
+            }
 
-                    // Update physics
-                    p.x += p.vx;
-                    p.y += p.vy;
-                    p.vy += p.gravity;
-                    p.vx *= 0.98;
-                    p.rotation += p.rotationSpeed;
-                    p.life -= p.decay;
+            // Check periodically if this burst is done
+            const checkInterval = setInterval(() => {
+                const burstStillActive = burstParticles.some(p =>
+                    allParticles.includes(p)
+                );
 
-                    // Draw particle based on shape
-                    ctx.save();
-                    ctx.translate(p.x, p.y);
-                    ctx.rotate((p.rotation * Math.PI) / 180);
-                    ctx.globalAlpha = p.life;
-                    ctx.fillStyle = p.color;
-
-                    if (p.shape === "circle") {
-                        ctx.beginPath();
-                        ctx.arc(0, 0, p.size / 2, 0, Math.PI * 2);
-                        ctx.fill();
-                    } else if (p.shape === "triangle") {
-                        ctx.beginPath();
-                        ctx.moveTo(0, -p.size / 2);
-                        ctx.lineTo(-p.size / 2, p.size / 2);
-                        ctx.lineTo(p.size / 2, p.size / 2);
-                        ctx.closePath();
-                        ctx.fill();
-                    } else if (p.shape === "rectangle") {
-                        const width = p.size * 1.5;
-                        const height = p.size * 0.7;
-                        ctx.fillRect(-width / 2, -height / 2, width, height);
-                    } else {
-                        ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
-                    }
-
-                    ctx.restore();
-
-                    // Remove dead particles
-                    if (p.life <= 0 || p.y > window.innerHeight + 100) {
-                        particles.splice(i, 1);
-                    }
-                }
-
-                if (particles.length > 0) {
-                    requestAnimationFrame(animate);
-                } else {
-                    document.body.removeChild(canvas);
+                if (!burstStillActive && !burstComplete) {
+                    burstComplete = true;
+                    clearInterval(checkInterval);
                     if (onComplete) onComplete();
                 }
+            }, 100);
+        }
+
+        function animate() {
+            if (!sharedCtx || allParticles.length === 0) {
+                // Clean up canvas when no particles remain
+                if (sharedCanvas && allParticles.length === 0) {
+                    document.body.removeChild(sharedCanvas);
+                    sharedCanvas = null;
+                    sharedCtx = null;
+                }
+                return;
             }
 
-            animate();
+            sharedCtx.clearRect(0, 0, sharedCanvas.width, sharedCanvas.height);
+
+            for (let i = allParticles.length - 1; i >= 0; i--) {
+                const p = allParticles[i];
+
+                // Update physics
+                p.x += p.vx;
+                p.y += p.vy;
+                p.vy += p.gravity;
+                p.vx *= 0.98;
+                p.rotation += p.rotationSpeed;
+                p.life -= p.decay;
+
+                // Draw particle based on shape
+                sharedCtx.save();
+                sharedCtx.translate(p.x, p.y);
+                sharedCtx.rotate((p.rotation * Math.PI) / 180);
+                sharedCtx.globalAlpha = p.life;
+                sharedCtx.fillStyle = p.color;
+
+                if (p.shape === "circle") {
+                    sharedCtx.beginPath();
+                    sharedCtx.arc(0, 0, p.size / 2, 0, Math.PI * 2);
+                    sharedCtx.fill();
+                } else if (p.shape === "triangle") {
+                    sharedCtx.beginPath();
+                    sharedCtx.moveTo(0, -p.size / 2);
+                    sharedCtx.lineTo(-p.size / 2, p.size / 2);
+                    sharedCtx.lineTo(p.size / 2, p.size / 2);
+                    sharedCtx.closePath();
+                    sharedCtx.fill();
+                } else if (p.shape === "rectangle") {
+                    const width = p.size * 1.5;
+                    const height = p.size * 0.7;
+                    sharedCtx.fillRect(-width / 2, -height / 2, width, height);
+                } else {
+                    sharedCtx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
+                }
+
+                sharedCtx.restore();
+
+                // Remove dead particles
+                if (p.life <= 0 || p.y > window.innerHeight + 100) {
+                    allParticles.splice(i, 1);
+                }
+            }
+
+            if (allParticles.length > 0) {
+                requestAnimationFrame(animate);
+            } else {
+                // Clean up canvas when done
+                if (sharedCanvas) {
+                    document.body.removeChild(sharedCanvas);
+                    sharedCanvas = null;
+                    sharedCtx = null;
+                }
+            }
         }
 
         // Launch confetti celebration (initial load - long duration)
@@ -306,7 +365,7 @@
                 "#f59e0b",
                 "#8b5cf6",
             ];
-            const end = Date.now() + 800; // .8 seconds duration
+            const end = Date.now() + (isMobile ? 400 : 800); // Shorter on mobile
             let burstCount = 0;
             let initialConfettiDone = false;
 
@@ -338,7 +397,7 @@
                 burstCount++;
 
                 if (Date.now() < end) {
-                    setTimeout(frame, 80); // Fire every 80ms
+                    setTimeout(frame, isMobile ? 120 : 80); // Slower on mobile
                 } else {
                     // All bursts have been created
                     initialConfettiDone = true;
@@ -388,7 +447,7 @@
                 updateButtonState();
 
                 if (Date.now() < end) {
-                    setTimeout(frame, 80); // Fire every 80ms
+                    setTimeout(frame, isMobile ? 120 : 80); // Slower on mobile
                 }
             }
 
